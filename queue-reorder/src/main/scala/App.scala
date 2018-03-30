@@ -26,12 +26,12 @@ class SourceQueue(pipe: ActorRef, var messageStream: Stream[Message]) extends Ac
   }
 }
 
-object MessageConsumer {
-  def props() = Props(new MessageConsumer())
+object MessageLogger {
+  def props() = Props(new MessageLogger())
 }
 
-class MessageConsumer extends Actor with ActorLogging {
-  import MessageConsumer._
+class MessageLogger extends Actor with ActorLogging {
+  import MessageLogger._
 
   def receive = {
     case Message(x, y) =>
@@ -41,12 +41,12 @@ class MessageConsumer extends Actor with ActorLogging {
 
 object QueueReorder extends App {
   import SourceQueue._
-  import MessageConsumer._
+  import MessageLogger._
   import system.dispatcher
   
   val system: ActorSystem = ActorSystem("helloAkka")
 
-  val messageConsumer: ActorRef = system.actorOf(MessageConsumer.props)
+  val messageConsumer: ActorRef = system.actorOf(MessageLogger.props)
   val messageStream = Stream.from(0).map(i => Message(i,i))
   val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageConsumer, messageStream))
   

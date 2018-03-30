@@ -48,3 +48,4 @@ class QueueReorderSpec(_system: ActorSystem)
     endStream.head should equal(startStream.drop(1).head)
   }
 }
+
