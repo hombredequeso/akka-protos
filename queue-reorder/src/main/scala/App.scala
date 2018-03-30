@@ -6,22 +6,22 @@ import scala.concurrent.duration._
 case class Message(sequenceNumber: Long, entitySequenceNumber: Long)
 
 object SourceQueue {
-  def props(pipe: ActorRef) = Props(new SourceQueue(pipe))
+  def props(pipe: ActorRef, messageStream: Stream[Message]) = Props(new SourceQueue(pipe, messageStream))
 
   final case class Poll()
 }
 
-class SourceQueue(pipe: ActorRef) extends Actor {
+class SourceQueue(pipe: ActorRef, var messageStream: Stream[Message]) extends Actor {
   import SourceQueue._
 
-  var nextSequenceNumber = 0L
-
-  def state = nextSequenceNumber
+  def state = messageStream
 
   def receive = {
     case Poll =>{
-      pipe ! Message(nextSequenceNumber, nextSequenceNumber)
-      nextSequenceNumber = 1+nextSequenceNumber
+      if (!messageStream.isEmpty) {
+        pipe ! messageStream.head
+        messageStream = messageStream.tail
+      }
     }
   }
 }
@@ -47,7 +47,8 @@ object QueueReorder extends App {
   val system: ActorSystem = ActorSystem("helloAkka")
 
   val messageConsumer: ActorRef = system.actorOf(MessageConsumer.props)
-  val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageConsumer))
+  val messageStream = Stream.from(0).map(i => Message(i,i))
+  val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageConsumer, messageStream))
   
   val cancellable =   system.scheduler.schedule(
     2000 milliseconds,
