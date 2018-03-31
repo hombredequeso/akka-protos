@@ -1,9 +1,11 @@
 package com.hombredequeso.queueReorder
 
 import org.scalatest.{ BeforeAndAfterAll, FlatSpecLike, Matchers }
-import akka.actor.{ Actor, Props, ActorSystem }
+import akka.actor.{ Actor, Props, ActorSystem, ActorLogging }
 import akka.testkit.{ ImplicitSender, TestKit, TestActorRef, TestProbe }
 import scala.concurrent.duration._
+import org.scalacheck._
+
 import SourceQueue._
 
 object TestStream {
