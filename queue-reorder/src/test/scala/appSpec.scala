@@ -23,7 +23,7 @@ object TestStream {
         Stream.range(start.n, end.n, 1).map(i => Message(i,i))
 }
 
-class QueueReorderSpec(_system: ActorSystem)
+class SourceQueueSpec(_system: ActorSystem)
   extends TestKit(_system)
   with Matchers
   with FlatSpecLike
@@ -38,7 +38,7 @@ class QueueReorderSpec(_system: ActorSystem)
     shutdown(system)
   }
 
-  "SourceQueue" should "remove head element from the stream when polled" in {
+  "Poll" should "remove head element from the stream state in the actor" in {
     val sourceQueue = TestActorRef[SourceQueue](
       SourceQueue.props(TestProbe().ref, infiniteOrderedMessageStream))
     val startStream = sourceQueue.underlyingActor.state
@@ -49,7 +49,7 @@ class QueueReorderSpec(_system: ActorSystem)
     endStream.head should equal(startStream.drop(1).head)
   }
 
-  "SourceQueue" should "send out a message when it polls" in {
+  "Poll" should "send a the next message in the stream to the pipe" in {
     val testProbe = TestProbe()
     val sourceQueue = 
       system.actorOf(SourceQueue.props(testProbe.ref, infiniteOrderedMessageStream))
@@ -58,7 +58,7 @@ class QueueReorderSpec(_system: ActorSystem)
   }
 
 
-  "SourceQueue" should "empty stream when poll called enough times" in {
+  "Poll" should "sends each message in order from the stream to the pipe then sends no more messages" in {
     val testProbe = TestProbe()
     val messageStream = Stream.range(0, 10, 1).map(i => Message(i,i) )
     val sourceQueue = 
