@@ -7,41 +7,44 @@ import scala.concurrent.duration._
 import org.scalacheck._
 import scala.collection.immutable.HashMap
 
+import cats._
+import cats.implicits._
+
 object MessageReorderer {
   def props(nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer(nextEntitySequenceNumber, pipe))
 }
 
 class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
 
+  type WaitingMessages = HashMap[Long, Message] 
+  type SequenceNumber = Long
+  type ActorState = (SequenceNumber, WaitingMessages)
 
-  var waitingMessages: HashMap[Long, Message] = HashMap()
-
+  var actorState: ActorState = (nextEntitySequenceNumber, HashMap())
 
   def getMessages(
-    next: Long, 
-    waitingMessages: HashMap[Long, Message], 
+    state: ActorState,
     messages: List[Message]) 
-  : (Long, HashMap[Long, Message],  List[Message]) = {
+  : (ActorState,  List[Message]) = {
+    val (next, waitingMessages) = state
     val nextMessage = waitingMessages.get(next)
-    nextMessage match {
-      case None => (next, waitingMessages, messages)
-      case Some(m) => {
-        getMessages(next + 1, waitingMessages - next, m :: messages)
-      }
-    }
+    nextMessage.fold(state, messages)(m => getMessages((next + 1, waitingMessages - next), m :: messages))
   }
 
+  def addMessage(state: ActorState, message: Message) : ActorState = {
+    state.fmap(msgs => 
+        if (message.entitySequenceNumber >= state._1)
+          msgs + (message.entitySequenceNumber -> message)
+        else
+          msgs)
+  }
 
   def receive = {
     case m: Message =>{
-      val msgs = if (m.entitySequenceNumber >= nextEntitySequenceNumber)
-        waitingMessages + (m.entitySequenceNumber -> m) else
-        waitingMessages;
-      val messagesToSend = getMessages(nextEntitySequenceNumber, msgs, List[Message]())
-      messagesToSend._3.sortBy(m => m.entitySequenceNumber).foreach(m => pipe ! m)
-
-      waitingMessages = messagesToSend._2
-      nextEntitySequenceNumber = messagesToSend._1
+      val state2 = addMessage(actorState, m)
+      val (state3, messagesToSend) = getMessages(state2, List[Message]())
+      messagesToSend.sortBy(m => m.entitySequenceNumber).foreach(m => pipe ! m)
+      actorState = state3
     }
   }
 }
@@ -61,6 +64,7 @@ class MessageReordererSpec(_system: ActorSystem)
     super.afterAll()
     shutdown(system)
   }
+
 
   "When receives a message with next entity sequence number" should "forward the message on" in {
     val testProbe = TestProbe()
