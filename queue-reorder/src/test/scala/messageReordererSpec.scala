@@ -9,6 +9,7 @@ import scala.collection.immutable.HashMap
 
 import cats._
 import cats.implicits._
+import cats.data._
 
 object MessageReorderer {
   def props(nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer(nextEntitySequenceNumber, pipe))
@@ -22,29 +23,45 @@ class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) exten
 
   var actorState: ActorState = (nextEntitySequenceNumber, HashMap())
 
-  def getMessages(
+  def getMessagesR(
     state: ActorState,
     messages: List[Message]) 
   : (ActorState,  List[Message]) = {
     val (next, waitingMessages) = state
     val nextMessage = waitingMessages.get(next)
-    nextMessage.fold(state, messages)(m => getMessages((next + 1, waitingMessages - next), m :: messages))
+    nextMessage.fold(state, messages)(m => getMessagesR((next + 1, waitingMessages - next), m :: messages))
   }
 
-  def addMessage(state: ActorState, message: Message) : ActorState = {
-    state.fmap(msgs => 
-        if (message.entitySequenceNumber >= state._1)
-          msgs + (message.entitySequenceNumber -> message)
-        else
-          msgs)
+  val getMessages
+  : State[ActorState,  List[Message]] = 
+    State { state => getMessagesR(state, List[Message]() ) }
+
+  def addMessage(message: Message) : State[ActorState, Unit] = {
+    State ( state =>
+          (state.fmap(msgs => 
+            if (message.entitySequenceNumber >= state._1)
+              msgs + (message.entitySequenceNumber -> message)
+            else
+              msgs), () )
+    )
   }
 
+
+  def processReceivedMessage(m: Message): State[ActorState, List[Message]] = 
+    addMessage(m).flatMap((_)=>getMessages)
+
+  // def processReceivedMessage(m: Message) = for {
+  //     _ <- addMessage(m)
+  //     messagesToSend <- getMessages
+  // } yield messagesToSend
+  //
+  
   def receive = {
-    case m: Message =>{
-      val state2 = addMessage(actorState, m)
-      val (state3, messagesToSend) = getMessages(state2, List[Message]())
+    case m: Message => {
+      val (newState, messagesToSend) = processReceivedMessage(m).run(actorState).value
+
       messagesToSend.sortBy(m => m.entitySequenceNumber).foreach(m => pipe ! m)
-      actorState = state3
+      actorState = newState
     }
   }
 }
