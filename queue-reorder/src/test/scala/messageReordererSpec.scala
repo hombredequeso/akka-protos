@@ -1,6 +1,10 @@
 package com.hombredequeso.queueReorder
 
-import org.scalatest.{ BeforeAndAfterAll, FlatSpecLike, Matchers }
+import org.scalatest._
+import prop._
+import scala.collection.immutable._
+
+// import org.scalatest.{ BeforeAndAfterAll, FlatSpecLike, Matchers, FlatSpec }
 import akka.actor.{ Actor, ActorRef, Props, ActorSystem, ActorLogging }
 import akka.testkit.{ ImplicitSender, TestKit, TestActorRef, TestProbe }
 import scala.concurrent.duration._
@@ -11,17 +15,80 @@ import cats._
 import cats.implicits._
 import cats.data._
 
-object MessageReorderer {
-  def props(nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer(nextEntitySequenceNumber, pipe))
+class AddMessageTestSpec extends PropSpec with TableDrivenPropertyChecks with Matchers {
+
+  import MessageOrdering._
+
+  val testData =
+    Table(
+      ("initialState", "newMessage", "endState"),
+      ((0L, HashMap[Long, Message]()), Message(0,0), (0, HashMap[Long, Message](0L -> Message(0,0)))),
+      ((0L, HashMap[Long, Message]()), Message(0,1), (0, HashMap[Long, Message](1L -> Message(0,1)))),
+      ((1L, HashMap[Long, Message]()), Message(0,0), (1, HashMap[Long, Message]()))
+      )
+
+  property("adds message to state if entity Sequence Number is equal or greater than state sequence number") {
+    forAll(testData) { (initialState, newMessage, endState) => {
+      val (resultState,_): (ActorState, Unit) = addMessage(newMessage).run(initialState).value
+      resultState should equal(endState)
+    }
+    }
+  }
 }
 
-class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
+class GetMessagesTestSpec extends PropSpec with TableDrivenPropertyChecks with Matchers {
+  import MessageOrdering._
+
+  val testData =
+    Table(
+          (
+            "initialState", 
+            "expectedMessages", 
+            "endState"),
+          (
+            (0L, HashMap[Long, Message]()), 
+            List[Message](), 
+            (0, HashMap[Long, Message]())
+          ),
+          (
+            (0L, HashMap[Long, Message](0L -> Message(999, 0))), 
+            List[Message](Message(999, 0)), 
+            (1L, HashMap[Long, Message]())
+          ),
+          (
+            (0L, HashMap[Long, Message](1L -> Message(999, 1))), 
+            List[Message](), 
+            (0L, HashMap[Long, Message](1L -> Message(999, 1)))
+          ),
+          (
+            (0L, HashMap[Long, Message](
+              0L -> Message(999, 0),
+              1L -> Message(999, 1),
+              3L -> Message(999, 3)
+            )), 
+            List[Message](
+                  Message(999, 1),
+                  Message(999, 0)
+              ), 
+            (2L, HashMap[Long, Message](3L -> Message(999, 3)))
+          )
+        )
+
+  property("returns all consecutive message from equal to state.sequenceNumber") {
+    forAll(testData) { (initialState, expectedMessages, endState) => {
+      val (resultState, resultMessages): (ActorState, List[Message]) = getMessages.run(initialState).value
+      resultState should equal(endState)
+      resultMessages should equal(expectedMessages)
+    }
+    }
+  }
+}
+
+object MessageOrdering {
 
   type WaitingMessages = HashMap[Long, Message] 
   type SequenceNumber = Long
   type ActorState = (SequenceNumber, WaitingMessages)
-
-  var actorState: ActorState = (nextEntitySequenceNumber, HashMap())
 
   def getMessagesR(
     state: ActorState,
@@ -34,9 +101,10 @@ class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) exten
 
   val getMessages
   : State[ActorState,  List[Message]] = 
-    State { state => getMessagesR(state, List[Message]() ) }
+    State { state => getMessagesR(state, List[Message]() )}
 
   def addMessage(message: Message) : State[ActorState, Unit] = {
+    // state is ActorState, or (SequenceNumber, WaitingMessages), so fmap applies function to WaitingMessages
     State ( state =>
           (state.fmap(msgs => 
             if (message.entitySequenceNumber >= state._1)
@@ -46,15 +114,29 @@ class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) exten
     )
   }
 
-
   def processReceivedMessage(m: Message): State[ActorState, List[Message]] = 
     addMessage(m).flatMap((_)=>getMessages)
 
+  // // Another version of the same function.
   // def processReceivedMessage(m: Message) = for {
   //     _ <- addMessage(m)
   //     messagesToSend <- getMessages
   // } yield messagesToSend
   //
+}
+
+
+
+
+object MessageReorderer {
+  def props(nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer(nextEntitySequenceNumber, pipe))
+}
+
+class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
+  import MessageOrdering._
+
+  var actorState: ActorState = (nextEntitySequenceNumber, HashMap())
+
   
   def receive = {
     case m: Message => {
