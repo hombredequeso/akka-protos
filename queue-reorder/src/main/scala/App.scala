@@ -47,8 +47,11 @@ object QueueReorder extends App {
   val system: ActorSystem = ActorSystem("helloAkka")
 
   val messageConsumer: ActorRef = system.actorOf(MessageLogger.props)
-  val messageStream = Stream.from(0).map(i => Message(i,i))
-  val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageConsumer, messageStream))
+  val messageReorderer = system.actorOf(MessageReorderer.props(0L, messageConsumer))
+
+  val messageStream = Stream.from(0).take(5).map(i => Message(i,i)).reverse
+
+  val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageReorderer, messageStream))
   
   val cancellable =   system.scheduler.schedule(
     2000 milliseconds,
