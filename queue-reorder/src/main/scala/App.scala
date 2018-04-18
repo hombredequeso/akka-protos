@@ -3,7 +3,15 @@ package com.hombredequeso.queueReorder
 import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
 import scala.concurrent.duration._
 
-case class Message(sequenceNumber: Long, entitySequenceNumber: Long)
+trait BaseMessage[TKey] {
+  val key: TKey
+  val sequenceNumber: Long
+  val entitySequenceNumber: Long
+}
+
+case class Message(sequenceNumber: Long, entitySequenceNumber: Long) extends BaseMessage[Long] {
+  val key = 123
+}
 
 object SourceQueue {
   def props(pipe: ActorRef, messageStream: Stream[Message]) = Props(new SourceQueue(pipe, messageStream))
@@ -47,7 +55,7 @@ object QueueReorder extends App {
   val system: ActorSystem = ActorSystem("helloAkka")
 
   val messageConsumer: ActorRef = system.actorOf(MessageLogger.props)
-  val messageReorderer = system.actorOf(MessageReorderer.props(0L, messageConsumer))
+  val messageReorderer = system.actorOf(MessageReorderer.props[Long](0L, messageConsumer))
 
   val messageStream = Stream.from(0).take(5).map(i => Message(i,i)).reverse
 

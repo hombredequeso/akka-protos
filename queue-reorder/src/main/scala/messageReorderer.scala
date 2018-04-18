@@ -10,35 +10,38 @@ import cats.data._
 
 object MessageOrdering {
 
-  type WaitingMessages = HashMap[Long, Message] 
+  type WaitingMessages[TKey] = HashMap[Long, BaseMessage[TKey]] 
   type SequenceNumber = Long
-  type ActorState = (SequenceNumber, WaitingMessages)
+  type ActorState[TKey] = (SequenceNumber, WaitingMessages[TKey])
 
-  def getMessagesR(
-    state: ActorState,
-    messages: List[Message]) 
-  : (ActorState,  List[Message]) = {
+  def getMessagesR[TKey](
+    state: ActorState[TKey],
+    messages: List[BaseMessage[TKey]]) 
+  : (ActorState[TKey],  List[BaseMessage[TKey]]) = {
     val (next, waitingMessages) = state
     val nextMessage = waitingMessages.get(next)
     nextMessage.fold(state, messages)(m => getMessagesR((next + 1, waitingMessages - next), m :: messages))
   }
 
-  val getMessages
-  : State[ActorState,  List[Message]] = 
-    State { state => getMessagesR(state, List[Message]() )}
+  def getMessages[TKey]
+  : State[ActorState[TKey],  List[BaseMessage[TKey]]] = 
+    State { state => getMessagesR(state, List[BaseMessage[TKey]]() )}
 
-  def addMessage(message: Message) : State[ActorState, Unit] = {
+  def addMessage[TKey](message: BaseMessage[TKey]) : State[ActorState[TKey], Unit] = {
     // state is ActorState, or (SequenceNumber, WaitingMessages), so fmap applies function to WaitingMessages
-    State ( state =>
+    // Oddly enough, this doesn't work...
+        // State ( (state:ActorState[TKey]) => {
+    // but this does (i.e. it can't handle ActorState[TKey], but needs to be told exactly what it is to fmap over it)
+    State ( (state:(SequenceNumber, WaitingMessages[TKey]))  => {
           (state.fmap(msgs => 
             if (message.entitySequenceNumber >= state._1)
               msgs + (message.entitySequenceNumber -> message)
             else
               msgs), () )
-    )
+    })
   }
 
-  def processReceivedMessage(m: Message): State[ActorState, List[Message]] = 
+  def processReceivedMessage[TKey](m: BaseMessage[TKey]): State[ActorState[TKey], List[BaseMessage[TKey]]] = 
     addMessage(m).flatMap((_)=>getMessages)
 }
 
@@ -52,17 +55,20 @@ object MessageOrdering {
 
 
 object MessageReorderer {
-  def props(nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer(nextEntitySequenceNumber, pipe))
+  def props[T](nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer[T](nextEntitySequenceNumber, pipe))
 }
 
-class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
+// class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends MessageReordererB[Long] {
+// }
+
+class MessageReorderer[T](var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
   import MessageOrdering._
 
-  var actorState: ActorState = (nextEntitySequenceNumber, HashMap())
+  var actorState: ActorState[T] = (nextEntitySequenceNumber, HashMap())
 
   
   def receive = {
-    case m: Message => {
+    case m: BaseMessage[T] => {
       val (newState, messagesToSend) = processReceivedMessage(m).run(actorState).value
 
       messagesToSend.sortBy(m => m.entitySequenceNumber).foreach(m => pipe ! m)

@@ -15,14 +15,14 @@ class AddMessageTestSpec extends PropSpec with TableDrivenPropertyChecks with Ma
   val testData =
     Table(
       ("initialState", "newMessage", "endState"),
-      ((0L, HashMap[Long, Message]()), Message(0,0), (0, HashMap[Long, Message](0L -> Message(0,0)))),
-      ((0L, HashMap[Long, Message]()), Message(0,1), (0, HashMap[Long, Message](1L -> Message(0,1)))),
-      ((1L, HashMap[Long, Message]()), Message(0,0), (1, HashMap[Long, Message]()))
+      ((0L, HashMap[Long, BaseMessage[Long]]()), Message(0,0), (0, HashMap[Long, BaseMessage[Long]](0L -> Message(0,0)))),
+      ((0L, HashMap[Long, BaseMessage[Long]]()), Message(0,1), (0, HashMap[Long, BaseMessage[Long]](1L -> Message(0,1)))),
+      ((1L, HashMap[Long, BaseMessage[Long]]()), Message(0,0), (1, HashMap[Long, BaseMessage[Long]]()))
       )
 
   property("adds message to state if entity Sequence Number is equal or greater than state sequence number") {
     forAll(testData) { (initialState, newMessage, endState) => {
-      val (resultState,_): (ActorState, Unit) = addMessage(newMessage).run(initialState).value
+      val (resultState,_): (ActorState[Long], Unit) = addMessage(newMessage).run(initialState).value
       resultState should equal(endState)
     }
     }
@@ -39,37 +39,37 @@ class GetMessagesTestSpec extends PropSpec with TableDrivenPropertyChecks with M
             "expectedMessages", 
             "endState"),
           (
-            (0L, HashMap[Long, Message]()), 
-            List[Message](), 
-            (0, HashMap[Long, Message]())
+            (0L, HashMap[Long, BaseMessage[Long]]()), 
+            List[BaseMessage[Long]](), 
+            (0, HashMap[Long, BaseMessage[Long]]())
           ),
           (
-            (0L, HashMap[Long, Message](0L -> Message(999, 0))), 
-            List[Message](Message(999, 0)), 
-            (1L, HashMap[Long, Message]())
+            (0L, HashMap[Long, BaseMessage[Long]](0L -> Message(999, 0))), 
+            List[BaseMessage[Long]](Message(999, 0)), 
+            (1L, HashMap[Long, BaseMessage[Long]]())
           ),
           (
-            (0L, HashMap[Long, Message](1L -> Message(999, 1))), 
-            List[Message](), 
-            (0L, HashMap[Long, Message](1L -> Message(999, 1)))
+            (0L, HashMap[Long, BaseMessage[Long]](1L -> Message(999, 1))), 
+            List[BaseMessage[Long]](), 
+            (0L, HashMap[Long, BaseMessage[Long]](1L -> Message(999, 1)))
           ),
           (
-            (0L, HashMap[Long, Message](
+            (0L, HashMap[Long, BaseMessage[Long]](
               0L -> Message(999, 0),
               1L -> Message(999, 1),
               3L -> Message(999, 3)
             )), 
-            List[Message](
+            List[BaseMessage[Long]](
                   Message(999, 1),
                   Message(999, 0)
               ), 
-            (2L, HashMap[Long, Message](3L -> Message(999, 3)))
+            (2L, HashMap[Long, BaseMessage[Long]](3L -> Message(999, 3)))
           )
         )
 
   property("returns all consecutive message from equal to state.sequenceNumber") {
     forAll(testData) { (initialState, expectedMessages, endState) => {
-      val (resultState, resultMessages): (ActorState, List[Message]) = getMessages.run(initialState).value
+      val (resultState, resultMessages): (ActorState[Long], List[BaseMessage[Long]]) = getMessages.run(initialState).value
       resultState should equal(endState)
       resultMessages should equal(expectedMessages)
     }
@@ -97,7 +97,7 @@ class MessageReordererSpec(_system: ActorSystem)
     val testProbe = TestProbe()
     val nextEntitySequenceNumber = 0
     val messageReorderer = 
-      system.actorOf(MessageReorderer.props(nextEntitySequenceNumber, testProbe.ref))
+      system.actorOf(MessageReorderer.props[Long](nextEntitySequenceNumber, testProbe.ref))
     val testMessage = Message(100, nextEntitySequenceNumber)
     messageReorderer ! testMessage
     testProbe.expectMsg(500 millis, testMessage)
@@ -107,7 +107,7 @@ class MessageReordererSpec(_system: ActorSystem)
     val testProbe = TestProbe()
     val nextEntitySequenceNumber = 0
     val messageReorderer = 
-      system.actorOf(MessageReorderer.props(nextEntitySequenceNumber, testProbe.ref))
+      system.actorOf(MessageReorderer.props[Long](nextEntitySequenceNumber, testProbe.ref))
     val testMessage = Message(100, nextEntitySequenceNumber + 1)
     messageReorderer ! testMessage
     testProbe.expectNoMsg(500 millis)
@@ -117,7 +117,7 @@ class MessageReordererSpec(_system: ActorSystem)
     val testProbe = TestProbe()
     val nextEntitySequenceNumber = 0
     val messageReorderer = 
-      system.actorOf(MessageReorderer.props(nextEntitySequenceNumber, testProbe.ref))
+      system.actorOf(MessageReorderer.props[Long](nextEntitySequenceNumber, testProbe.ref))
     val testMessage = Message(100, nextEntitySequenceNumber - 1)
     messageReorderer ! testMessage
     testProbe.expectNoMsg(500 millis)
@@ -130,7 +130,7 @@ class MessageReordererSpec(_system: ActorSystem)
     val testProbe = TestProbe()
     val nextEntitySequenceNumber = 10
     val messageReorderer = 
-      system.actorOf(MessageReorderer.props(nextEntitySequenceNumber, testProbe.ref))
+      system.actorOf(MessageReorderer.props[Long](nextEntitySequenceNumber, testProbe.ref))
     val messages = messageStream(nextEntitySequenceNumber).take(2).toList
 
     messages.reverse.foreach(m => messageReorderer ! m)
@@ -142,7 +142,7 @@ class MessageReordererSpec(_system: ActorSystem)
     val testProbe = TestProbe()
     val nextEntitySequenceNumber = 10
     val messageReorderer = 
-      system.actorOf(MessageReorderer.props(nextEntitySequenceNumber, testProbe.ref))
+      system.actorOf(MessageReorderer.props[Long](nextEntitySequenceNumber, testProbe.ref))
 
     val messages = messageStream(nextEntitySequenceNumber).take(3).toList
     messages.take(2).reverse.foreach(m => messageReorderer ! m)
