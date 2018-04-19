@@ -4,8 +4,8 @@ import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
 import scala.concurrent.duration._
 
 trait BaseMessage[TKey] {
-  val key: TKey
   val sequenceNumber: Long
+  val key: TKey   // entity id
   val entitySequenceNumber: Long
 }
 

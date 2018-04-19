@@ -52,8 +52,6 @@ object MessageOrdering {
   // } yield messagesToSend
   //
 
-
-
 object MessageReorderer {
   def props[T](nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer[T](nextEntitySequenceNumber, pipe))
 }
