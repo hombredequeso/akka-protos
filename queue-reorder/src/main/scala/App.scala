@@ -9,8 +9,8 @@ trait BaseMessage[TKey] {
   val entitySequenceNumber: Long
 }
 
-case class Message(sequenceNumber: Long, entitySequenceNumber: Long) extends BaseMessage[Long] {
-  val key = 123
+case class Message(sequenceNumber: Long, entitySequenceNumber: Long, key: Long) extends BaseMessage[Long] {
+  // val key = 123
 }
 
 object SourceQueue {
@@ -42,8 +42,8 @@ class MessageLogger extends Actor with ActorLogging {
   import MessageLogger._
 
   def receive = {
-    case Message(x, y) =>
-      log.info(s"Message received (Message ${x}, ${y})")
+    case Message(x, y,id) =>
+      log.info(s"Message received (Message ${x}, ${y}, ${id})")
   }
 }
 
@@ -54,10 +54,16 @@ object QueueReorder extends App {
   
   val system: ActorSystem = ActorSystem("helloAkka")
 
-  val messageConsumer: ActorRef = system.actorOf(MessageLogger.props)
-  val messageReorderer = system.actorOf(MessageReorderer.props[Long](0L, messageConsumer))
+  // val messageConsumer: ActorRef = system.actorOf(MessageLogger.props)
+  val messageConsumers: Vector[ActorRef] = (0 to 2).map(i => system.actorOf(MessageLogger.props, name=s"logger${i}")).toVector
+  val messageReorderer = system.actorOf(MessageReorderer.props[Long](
+                                          0L, 
+                                          l => l.toInt,
+                                          messageConsumers))
+                                          // Vector(messageConsumer)))
 
-  val messageStream = Stream.from(0).take(5).map(i => Message(i,i)).reverse
+  // val messageStream = Stream.from(0).take(5).map(i => Message(i,i,123)).reverse
+  val messageStream = Stream.from(0).map(i => Message(i,i,i))
 
   val sourceQueue: ActorRef = system.actorOf(SourceQueue.props(messageReorderer, messageStream))
   

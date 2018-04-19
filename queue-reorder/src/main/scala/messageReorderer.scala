@@ -53,23 +53,36 @@ object MessageOrdering {
   //
 
 object MessageReorderer {
-  def props[T](nextEntitySequenceNumber: Long, pipe: ActorRef) = Props(new MessageReorderer[T](nextEntitySequenceNumber, pipe))
+  def props[T](nextEntitySequenceNumber: Long, f: T=> Int,  pipe: Vector[ActorRef]) = 
+    Props(new MessageReorderer[T](nextEntitySequenceNumber, f, pipe))
 }
 
 // class MessageReorderer(var nextEntitySequenceNumber: Long, pipe: ActorRef) extends MessageReordererB[Long] {
 // }
 
-class MessageReorderer[T](var nextEntitySequenceNumber: Long, pipe: ActorRef) extends Actor {
+class MessageReorderer[T](
+  var nextEntitySequenceNumber: Long, 
+  idTransform: T => Int,
+  moduleShardedPipes: Vector[ActorRef])
+extends Actor with ActorLogging {
+
   import MessageOrdering._
 
   var actorState: ActorState[T] = (nextEntitySequenceNumber, HashMap())
 
-  
+  def sendMessage(m: BaseMessage[T]) = {
+    // val trans = idTransform(m.key)
+    // val len = moduleShardedPipes.length
+    val pipeNumber = idTransform(m.key) % moduleShardedPipes.length
+    // log.info(s"reorderer. mkey=${m.key}; trans=${trans}; len=${len}; pipenumber=${pipeNumber}")
+    moduleShardedPipes(pipeNumber) ! m
+  }
+
   def receive = {
     case m: BaseMessage[T] => {
       val (newState, messagesToSend) = processReceivedMessage(m).run(actorState).value
 
-      messagesToSend.sortBy(m => m.entitySequenceNumber).foreach(m => pipe ! m)
+      messagesToSend.sortBy(m => m.entitySequenceNumber).foreach(sendMessage)
       actorState = newState
     }
   }

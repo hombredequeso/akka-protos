@@ -18,9 +18,9 @@ object TestStream {
   implicit def toInt(s: StreamEnd) = s.n
   implicit val defaultStreamEnd = StreamEnd(12)
 
-  def infiniteOrderedMessageStream(implicit start: StreamStart) = Stream.from(start).map(i => Message(i,i))
+  def infiniteOrderedMessageStream(implicit start: StreamStart) = Stream.from(start).map(i => Message(i,i,i))
   def finiteOrderedMessageStream(implicit start: StreamStart, end: StreamEnd) = 
-        Stream.range(start.n, end.n, 1).map(i => Message(i,i))
+        Stream.range(start.n, end.n, 1).map(i => Message(i,i,i))
 }
 
 class SourceQueueSpec(_system: ActorSystem)
@@ -54,13 +54,13 @@ class SourceQueueSpec(_system: ActorSystem)
     val sourceQueue = 
       system.actorOf(SourceQueue.props(testProbe.ref, infiniteOrderedMessageStream))
     sourceQueue ! Poll
-    testProbe.expectMsg(500 millis, Message(0,0))
+    testProbe.expectMsg(500 millis, Message(0,0,0))
   }
 
 
   "Poll" should "sends each message in order from the stream to the pipe then sends no more messages" in {
     val testProbe = TestProbe()
-    val messageStream = Stream.range(0, 10, 1).map(i => Message(i,i) )
+    val messageStream = Stream.range(0, 10, 1).map(i => Message(i,i,i) )
     val sourceQueue = 
       system.actorOf(SourceQueue.props(testProbe.ref, messageStream))
 
