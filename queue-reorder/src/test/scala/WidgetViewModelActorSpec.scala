@@ -88,11 +88,8 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
     expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(widgetKey, ACTIVATED))))
   }
 
-  type WidgetStateTest = (Long, Option[WidgetStatus])
-  def testExpectedState(actor: ActorRef, widgetStates: List[WidgetStateTest]) : Unit = {
-    widgetStates.foreach(e => {
-      e match {
-        case (key, expectedState) => {
+  def testExpectedState(actor: ActorRef, widgetStates: Map[Long, Option[WidgetStatus]]) : Unit = {
+    widgetStates.foreach{ case (key, expectedState) => {
           actor ! GetWidgetViewModel(key)
           val expectedVm = expectedState.map(WidgetViewModel(key, _))
           expectMsg(
@@ -100,41 +97,29 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
             WidgetViewModelResponse(expectedVm))
         }
       }
-    })
   }
 
   "When events received for unrelated widgets" should "not interfere with each other" in {
-    val widgetKey1 = 123
-    val widgetKey2 = 456
+    val widgetKey1:Long = 123
+    val widgetKey2:Long = 456
 
     val actor:ActorRef = system.actorOf(
       WidgetViewModelActor.props())
 
-
     actor ! WidgetMessage(1,2, widgetKey1, WidgetCreated())
-    testExpectedState(actor, List((widgetKey1, Some(CREATED)), (widgetKey2, None)))
-
-    actor ! GetWidgetViewModel(widgetKey1)
-    expectMsg(100 millis, WidgetViewModelResponse(Some(WidgetViewModel(widgetKey1, CREATED))))
-
-    actor ! GetWidgetViewModel(widgetKey2)
-    expectMsg(100 millis, WidgetViewModelResponse(None))
-
+    testExpectedState(
+      actor, 
+      Map(widgetKey1 -> Some(CREATED), widgetKey2 -> None))
 
     actor ! WidgetMessage(1,2, widgetKey1, WidgetActivated())
-    actor ! GetWidgetViewModel(widgetKey1)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(widgetKey1, ACTIVATED))))
-
-    actor ! GetWidgetViewModel(widgetKey2)
-    expectMsg(500 millis, WidgetViewModelResponse(None))
-
+    testExpectedState(
+      actor, 
+      Map(widgetKey1 -> Some(ACTIVATED), widgetKey2 ->  None))
 
     actor ! WidgetMessage(1,2, widgetKey2, WidgetCreated())
-    actor ! GetWidgetViewModel(widgetKey2)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(widgetKey2, CREATED))))
-
-    actor ! GetWidgetViewModel(widgetKey1)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(widgetKey1, ACTIVATED))))
+    testExpectedState(
+      actor, 
+      Map(widgetKey1 -> Some(ACTIVATED), widgetKey2 -> Some(CREATED)))
   }
 }
 
