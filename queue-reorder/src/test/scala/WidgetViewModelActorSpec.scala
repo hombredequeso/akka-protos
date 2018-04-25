@@ -46,7 +46,7 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
     actor ! WidgetMessage(1, entitySequenceNumber, widgetKey, WidgetCreated())
     actor ! GetWidgetViewModel(widgetKey)
 
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(entitySequenceNumber, CREATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( entitySequenceNumber ), Data( CREATED )))))
   }
 
   "When widget status messages received" should "update viewmodel" in {
@@ -58,16 +58,16 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
 
     actor ! WidgetMessage(1,startEntitySequenceNumber, widgetKey, WidgetCreated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber, CREATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber ), Data( CREATED )))))
 
 
     actor ! WidgetMessage(1,startEntitySequenceNumber + 1, widgetKey, WidgetActivated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 1,  ACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 1 ),  Data( ACTIVATED )))))
 
     actor ! WidgetMessage(1,startEntitySequenceNumber + 2, widgetKey, WidgetDeactivated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 2, DEACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 2 ), Data( DEACTIVATED )))))
   }
 
   "When widget status messages received" should "only update viewmodel with more recent versions" in {
@@ -79,17 +79,17 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
 
     actor ! WidgetMessage(100, startEntitySequenceNumber, widgetKey, WidgetCreated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber, CREATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber ), Data( CREATED )))))
 
 
     actor ! WidgetMessage(300, startEntitySequenceNumber + 2, widgetKey, WidgetDeactivated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 2, DEACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 2 ), Data( DEACTIVATED )))))
 
 
     actor ! WidgetMessage(200, startEntitySequenceNumber + 1, widgetKey, WidgetActivated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 2, DEACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 2 ), Data( DEACTIVATED )))))
   }
 
   "When multiple Created events received" should "only process the first one" in {
@@ -102,22 +102,22 @@ class WidgetViewModelActorSpec(_system: ActorSystem)
     val createdEvent = WidgetMessage(1, startEntitySequenceNumber, widgetKey, WidgetCreated())
     actor ! createdEvent
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber, CREATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber ), Data( CREATED )))))
 
 
     actor ! WidgetMessage(1,startEntitySequenceNumber + 1, widgetKey, WidgetActivated())
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 1, ACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 1 ), Data( ACTIVATED )))))
 
     actor ! createdEvent
     actor ! GetWidgetViewModel(widgetKey)
-    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(startEntitySequenceNumber + 1, ACTIVATED))))
+    expectMsg(500 millis, WidgetViewModelResponse(Some(WidgetViewModel(Metadata( startEntitySequenceNumber + 1 ), Data( ACTIVATED )))))
   }
 
   def testExpectedState(actor: ActorRef, widgetStates: Map[Long, Option[(Long, WidgetStatus)]]) : Unit = {
     widgetStates.foreach{ case (key, expectedState) => {
           actor ! GetWidgetViewModel(key)
-          val expectedVm = expectedState.map(s => WidgetViewModel(s._1, s._2))
+          val expectedVm = expectedState.map(s => WidgetViewModel(Metadata( s._1 ), Data( s._2 )))
           expectMsg(
             500 millis,
             WidgetViewModelResponse(expectedVm))

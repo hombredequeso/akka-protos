@@ -21,14 +21,19 @@ object WidgetViewModelActor {
   }
 
   import WidgetStatus._
+
+  case class Data(val status: WidgetStatus) {}
+  case class Metadata(val version: Long) {}
+
   case class WidgetViewModel(
-    val version: Long,
-    val status: WidgetStatus) {}
+    val metadata: Metadata,
+    val data: Data
+    ){}
 
   implicit val widgetViewModelSemiGroup: Semigroup[WidgetViewModel] =
     new Semigroup[WidgetViewModel] {
       def combine(x: WidgetViewModel, y: WidgetViewModel) = {
-        if (x.version > y.version) x else y
+        if (x.metadata.version > y.metadata.version) x else y
       }
     }
 
@@ -61,8 +66,8 @@ class WidgetViewModelActor() extends Actor with ActorLogging {
 
   def toViewModel(widgetMessage: WidgetMessage) : WidgetViewModel = {
     WidgetViewModel(
-      widgetMessage.entitySequenceNumber, 
-      toStatus(widgetMessage.widgetEvent))
+      Metadata(widgetMessage.entitySequenceNumber), 
+      Data(toStatus(widgetMessage.widgetEvent)))
   }
 
   def processWidgetMessage(wm: WidgetMessage, vms: ViewModelMap) : ViewModelMap = {
