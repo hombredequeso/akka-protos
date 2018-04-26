@@ -7,6 +7,7 @@ import akka.testkit.{ ImplicitSender, TestKit, TestActorRef, TestProbe }
 import org.scalatest._
 import prop._
 import scala.concurrent.duration._
+import Vms._
 
 class WidgetViewModelActorSpec(_system: ActorSystem)
   extends TestKit(_system)

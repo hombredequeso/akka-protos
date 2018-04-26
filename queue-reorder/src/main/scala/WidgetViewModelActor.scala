@@ -9,15 +9,10 @@ import cats.Monoid
 import cats.Semigroup
 import cats.instances.option._
 
-object WidgetViewModelActor {
-  def props() = Props(new WidgetViewModelActor())
-
-  case class GetWidgetViewModel(key: WidgetKey)
-  case class WidgetViewModelResponse(vm: Option[WidgetViewModel])
-
+object Vms {
   object WidgetStatus extends Enumeration {
       type WidgetStatus = Value
-      val CREATED, ACTIVATED, DEACTIVATED = Value
+      val UNINITIALIZED, CREATED, ACTIVATED, DEACTIVATED = Value
   }
 
   import WidgetStatus._
@@ -36,13 +31,22 @@ object WidgetViewModelActor {
         if (x.metadata.version > y.metadata.version) x else y
       }
     }
+}
 
+object WidgetViewModelActor {
+  import Vms._
+
+  def props() = Props(new WidgetViewModelActor())
+
+  case class GetWidgetViewModel(key: WidgetKey)
+  case class WidgetViewModelResponse(vm: Option[WidgetViewModel])
 
   type ViewModelMap = Map[WidgetKey, WidgetViewModel]
 }
 
 class WidgetViewModelActor() extends Actor with ActorLogging {
   import WidgetViewModelActor._
+  import Vms._
   import WidgetStatus._
 
 

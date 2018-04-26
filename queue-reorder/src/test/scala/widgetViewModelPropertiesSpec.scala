@@ -1,5 +1,7 @@
 package com.hombredequeso.queueReorder
 
+import Vms._
+
 import cats.Monoid
 import cats.Semigroup
 import cats.instances.option._
