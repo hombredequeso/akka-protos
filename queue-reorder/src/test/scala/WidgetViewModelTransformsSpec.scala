@@ -2,6 +2,8 @@ package com.hombredequeso.queueReorder
 
 import Vms._
 
+import cats._
+import cats.implicits._
 import cats.Monoid
 import cats.Semigroup
 import cats.instances.option._
@@ -22,6 +24,10 @@ class WidgetViewModelTransformsSpec extends FlatSpec with Matchers {
       case _: WidgetActivated => d.copy(status=ACTIVATED)
       case _: WidgetDeactivated => d.copy(status=DEACTIVATED)
     }
+  }
+
+  def applyMetadata(m: Metadata, e: WidgetMessage): Metadata = {
+    Metadata(e.entitySequenceNumber)
   }
 
   val emptyData = Data(UNINITIALIZED)
@@ -69,31 +75,25 @@ class WidgetViewModelTransformsSpec extends FlatSpec with Matchers {
       emptyData
       )
 
+  def applyMessage(wvm:WidgetViewModel, evt: WidgetMessage) = {
+      WidgetViewModel(
+        applyMetadata(wvm.metadata, evt), 
+        applyEvent(wvm.data, evt.widgetEvent))
+  }
+
   def applyMessages(
     wvm: WidgetViewModel, 
     msgs: List[WidgetMessage]) : 
     (WidgetViewModel, List[WidgetMessage]) = {
 
-    val (leftOver, msgsToApply) = takeSequential(
+    takeSequential(
       wvm.metadata.version + 1,
       msgs.sortBy(m => m.entitySequenceNumber),
       List[WidgetMessage]()
-      )
-    
-    val newData = 
-      msgsToApply
-        .map(m => m.widgetEvent)
-        .foldLeft( wvm.data )( applyEvent )
-
-    val newEntitySequenceNumber =
-      (wvm.metadata.version :: msgsToApply.map(m=> m.entitySequenceNumber))
-        .max
-
-    val newWvm = 
-      WidgetViewModel(
-        Metadata(newEntitySequenceNumber),
-        newData)
-    (newWvm, leftOver)
+    )
+    .fmap(
+      msgsToApply => msgsToApply.foldLeft(wvm)(applyMessage))
+    .swap
   }
 
   "apply event if possible" should "apply the event if next in sequence" in {
