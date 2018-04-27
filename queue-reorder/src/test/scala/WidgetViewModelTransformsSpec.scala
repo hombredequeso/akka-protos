@@ -30,7 +30,21 @@ class WidgetViewModelTransformsSpec extends FlatSpec with Matchers {
     Metadata(e.entitySequenceNumber)
   }
 
+  def applyMessage(wvm:WidgetViewModel, evt: WidgetMessage) = {
+      WidgetViewModel(
+        applyMetadata(wvm.metadata, evt), 
+        applyEvent(wvm.data, evt.widgetEvent))
+  }
+
+  // A WidgetViewModel that has has no events at all applied to it.
+  // the -1 version is because it is expected that the first event
+  // will have version 0.
   val emptyData = Data(UNINITIALIZED)
+  val uninitializedWidgetViewModel =
+    WidgetViewModel(
+      Metadata(-1),
+      emptyData
+      )
 
   "folded events" should "result in a viewmodel" in {
     val evts : List[WidgetEvent] = List(WidgetCreated())
@@ -62,24 +76,9 @@ class WidgetViewModelTransformsSpec extends FlatSpec with Matchers {
           takeSequential(next + 1, ms, m::result)
         else
           (takeFrom, result)
-
       }
     }
 
-  // A WidgetViewModel that has has no events at all applied to it.
-  // the -1 version is because it is expected that the first event
-  // will have version 0.
-  val uninitializedWidgetViewModel =
-    WidgetViewModel(
-      Metadata(-1),
-      emptyData
-      )
-
-  def applyMessage(wvm:WidgetViewModel, evt: WidgetMessage) = {
-      WidgetViewModel(
-        applyMetadata(wvm.metadata, evt), 
-        applyEvent(wvm.data, evt.widgetEvent))
-  }
 
   def applyMessages(
     wvm: WidgetViewModel, 
@@ -115,6 +114,5 @@ class WidgetViewModelTransformsSpec extends FlatSpec with Matchers {
 
     applyMessages(vm, List(nextMessage)) should 
       equal ((expectedVm, List[WidgetMessage]()))
-
   }
 }
